@@ -100,8 +100,14 @@ export default function MapContainer({
       if (mapInstance.current) mapInstance.current.invalidateSize()
     }, 200)
 
+    const resizeObserver = new ResizeObserver(() => {
+      mapInstance.current?.invalidateSize({ animate: false })
+    })
+    resizeObserver.observe(mapRef.current)
+
     return () => {
       clearTimeout(timer)
+      resizeObserver.disconnect()
       map.remove()
       mapInstance.current = null
     }
