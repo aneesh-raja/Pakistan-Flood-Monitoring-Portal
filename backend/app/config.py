@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     # ── Google Earth Engine ──────────────────────────────────
     GEE_SERVICE_ACCOUNT_EMAIL: str = ""
     GEE_PRIVATE_KEY_PATH: str = "./gee_credentials.json"
+    GEE_PROJECT_ID: str = ""
 
     # ── Supabase ─────────────────────────────────────────────
     SUPABASE_URL: str = ""

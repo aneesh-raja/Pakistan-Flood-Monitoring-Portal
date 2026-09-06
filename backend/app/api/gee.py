@@ -33,6 +33,7 @@ def _ensure_gee():
             initialize_gee(
                 service_account=settings.GEE_SERVICE_ACCOUNT_EMAIL,
                 key_path=settings.GEE_PRIVATE_KEY_PATH,
+                project_id=settings.GEE_PROJECT_ID or None,
             )
             _gee_initialized = True
         except Exception as e:

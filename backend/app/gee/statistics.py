@@ -20,18 +20,18 @@ def get_pakistan_bbox():
     return ee.Geometry.Rectangle([60.87, 23.63, 77.83, 37.09])
 
 
-def initialize_gee(service_account: str = None, key_path: str = None):
+def initialize_gee(service_account: str = None, key_path: str = None, project_id: str = None):
     """Initialize GEE with service account or default credentials."""
     try:
         if service_account and key_path and os.path.exists(key_path):
             credentials = ee.ServiceAccountCredentials(service_account, key_path)
-            ee.Initialize(credentials)
+            ee.Initialize(credentials, project=project_id)
         else:
-            ee.Initialize()
+            ee.Initialize(project=project_id)
         logger.info("Successfully initialized Google Earth Engine using service account key.")
     except Exception as e:
         logger.error("Failed to initialize GEE: %s", e)
-        sys.exit(1)
+        raise RuntimeError(f"Failed to initialize Google Earth Engine: {e}") from e
 
 
 def load_pakistan_districts() -> ee.FeatureCollection:
