@@ -11,8 +11,10 @@ import os
 class Settings(BaseSettings):
     # ── Google Earth Engine ──────────────────────────────────
     GEE_SERVICE_ACCOUNT_EMAIL: str = ""
-    GEE_PRIVATE_KEY_PATH: str = "./gee_credentials.json"
-    GEE_PROJECT_ID: str = ""
+    GEE_PRIVATE_KEY_PATH: str = os.path.abspath(
+        os.path.join(os.path.dirname(__file__), "..", "..", "gee_credentials.json")
+    )
+    GEE_PROJECT_ID: str = "flood-monitoring-portal"
 
     # ── Supabase ─────────────────────────────────────────────
     SUPABASE_URL: str = ""
