@@ -16,6 +16,8 @@ build/
 
 # GEE credentials
 *.json
+!frontend/package.json
+!frontend/package-lock.json
 service_account_key.json
 gee_credentials.json
 
