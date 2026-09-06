@@ -23,13 +23,18 @@ function setDrawColor(doc, rgb) { doc.setDrawColor(...rgb) }
  */
 export async function exportFloodSituationReport(reportData = {}) {
   const {
-    summary = {},
-    alerts = [],
-    districts = [],
-    stations = [],
-    weatherData = [],
+    summary: rawSummary,
+    alerts: rawAlerts,
+    districts: rawDistricts,
+    stations: rawStations,
+    weatherData: rawWeatherData,
     activeLayer = 'inundation',
   } = reportData
+  const summary = rawSummary || {}
+  const alerts = Array.isArray(rawAlerts) ? rawAlerts : []
+  const districts = Array.isArray(rawDistricts) ? rawDistricts : []
+  const stations = Array.isArray(rawStations) ? rawStations : []
+  const weatherData = Array.isArray(rawWeatherData) ? rawWeatherData : []
 
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
   const W = 210
