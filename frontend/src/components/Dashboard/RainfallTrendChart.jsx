@@ -3,17 +3,6 @@ import {
   CartesianGrid, Tooltip, Cell
 } from 'recharts'
 
-const DEMO_RAINFALL = [
-  { city: 'Karachi',    rainfall: 4.2  },
-  { city: 'Hyderabad',  rainfall: 18.5 },
-  { city: 'Sukkur',     rainfall: 48.2 },
-  { city: 'Multan',     rainfall: 12.1 },
-  { city: 'Lahore',     rainfall: 8.6  },
-  { city: 'Islamabad',  rainfall: 22.4 },
-  { city: 'Peshawar',   rainfall: 35.7 },
-  { city: 'Quetta',     rainfall: 6.3  },
-]
-
 const getRainfallColor = (mm) => {
   if (mm >= 50) return '#7c3aed'
   if (mm >= 25) return '#ef4444'
@@ -45,25 +34,26 @@ const CustomTooltip = ({ active, payload, label }) => {
 }
 
 export default function RainfallTrendChart({ weatherData = [], loading }) {
-  // Build chart data from live weather or fallback to demo
-  const chartData = weatherData.length > 0
-    ? weatherData.map(w => ({
-        city: w.city,
-        rainfall: parseFloat((w.rainfall_3h_mm || 0).toFixed(1)),
-      })).sort((a, b) => b.rainfall - a.rainfall)
-    : DEMO_RAINFALL
+  const chartData = weatherData.map(w => ({
+    city: w.city,
+    rainfall: parseFloat((w.rainfall_3h_mm || 0).toFixed(1)),
+  })).sort((a, b) => b.rainfall - a.rainfall)
 
   return (
     <div>
       <div className="panel-title">3-Hour Rainfall — Major Cities</div>
       <div className="chart-wrapper">
         <div className="chart-header">
-          <span className="chart-title">OpenWeatherMap Live Data</span>
+          <span className="chart-title">OpenWeatherMap Data</span>
           <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>mm / 3h</span>
         </div>
 
         {loading ? (
           <div className="skeleton" style={{ height: 200, borderRadius: 8 }} />
+        ) : chartData.length === 0 ? (
+          <div style={{ height: 200, display: 'grid', placeItems: 'center', color: 'var(--text-muted)', fontSize: 11 }}>
+            Verified weather data is unavailable.
+          </div>
         ) : (
           <ResponsiveContainer width="100%" height={200}>
             <BarChart data={chartData} layout="vertical" margin={{ top: 0, right: 10, left: 0, bottom: 0 }}>

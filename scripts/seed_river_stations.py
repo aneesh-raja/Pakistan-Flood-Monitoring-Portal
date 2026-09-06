@@ -1,8 +1,7 @@
 """
 seed_river_stations.py - Seeds river stations and historical readings into Supabase.
 """
-import os, sys, random
-from datetime import datetime, timedelta
+import os, sys
 from dotenv import load_dotenv
 from supabase import create_client
 
@@ -53,23 +52,7 @@ def seed():
         except Exception as e:
             print(f"  [ERROR] {s['station_name']}: {e}")
 
-    # Generate 60-day historical readings
-    resp = supabase.table("river_stations").select("id, station_name, current_level_m, discharge_cusecs").execute()
-    for st in (resp.data or []):
-        readings = []
-        for i in range(60 * 4):
-            dt = datetime.utcnow() - timedelta(hours=i * 6)
-            readings.append({
-                "station_id": st["id"],
-                "gauge_height_m": round(max(0.5, (st["current_level_m"] or 8) + random.uniform(-1, 1)), 2),
-                "discharge_cusecs": round(max(1000, (st["discharge_cusecs"] or 100000) * random.uniform(0.85, 1.15))),
-                "recorded_at": dt.isoformat(),
-            })
-        try:
-            supabase.table("river_historical_readings").insert(readings).execute()
-            print(f"  [OK] {st['station_name']}: {len(readings)} readings")
-        except Exception as e:
-            print(f"  [ERROR] {st['station_name']}: {e}")
+    print("Historical readings were not generated: import verified telemetry data instead.")
     print("Done!")
 
 

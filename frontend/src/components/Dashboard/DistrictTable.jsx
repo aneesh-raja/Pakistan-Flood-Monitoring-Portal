@@ -1,19 +1,6 @@
 import { useState } from 'react'
 import { formatPopulation, formatArea, getFloodStatusBadgeClass } from '../../utils/geojsonUtils.js'
 
-const DEMO_DISTRICTS = [
-  { district_name: 'Sukkur',     province: 'Sindh',  affected_population: 892000, inundated_sqkm: 3210, risk_score: 'Severe' },
-  { district_name: 'Dadu',       province: 'Sindh',  affected_population: 654000, inundated_sqkm: 2840, risk_score: 'Severe' },
-  { district_name: 'Larkana',    province: 'Sindh',  affected_population: 481000, inundated_sqkm: 1920, risk_score: 'High'   },
-  { district_name: 'Jampur',     province: 'Punjab', affected_population: 312000, inundated_sqkm: 980,  risk_score: 'High'   },
-  { district_name: 'Rajanpur',   province: 'Punjab', affected_population: 298000, inundated_sqkm: 870,  risk_score: 'High'   },
-  { district_name: 'Charsadda',  province: 'KPK',    affected_population: 215000, inundated_sqkm: 640,  risk_score: 'Moderate'},
-  { district_name: 'Nowshera',   province: 'KPK',    affected_population: 187000, inundated_sqkm: 520,  risk_score: 'Moderate'},
-  { district_name: 'Kashmore',   province: 'Sindh',  affected_population: 163000, inundated_sqkm: 480,  risk_score: 'High'   },
-  { district_name: 'Shikarpur',  province: 'Sindh',  affected_population: 142000, inundated_sqkm: 390,  risk_score: 'Moderate'},
-  { district_name: 'Muzaffargarh', province: 'Punjab', affected_population: 128000, inundated_sqkm: 320, risk_score: 'Moderate'},
-]
-
 const RISK_ORDER = { Severe: 0, High: 1, Moderate: 2, Low: 3 }
 const SORT_KEYS = ['district_name', 'affected_population', 'inundated_sqkm', 'risk_score']
 
@@ -22,7 +9,7 @@ export default function DistrictTable({ districts = [], loading }) {
   const [sortAsc, setSortAsc] = useState(false)
   const [filter, setFilter] = useState('')
 
-  const data = (districts.length > 0 ? districts : DEMO_DISTRICTS)
+  const data = districts
     .filter(d =>
       d.district_name?.toLowerCase().includes(filter.toLowerCase()) ||
       d.province?.toLowerCase().includes(filter.toLowerCase())
@@ -76,7 +63,11 @@ export default function DistrictTable({ districts = [], loading }) {
         <div className="skeleton" style={{ height: 240, borderRadius: 8 }} />
       ) : (
         <div className="district-table-wrapper">
-          <table className="district-table">
+          {data.length === 0 ? (
+            <div style={{ padding: 16, color: 'var(--text-muted)', fontSize: 11 }}>
+              Verified district data is unavailable.
+            </div>
+          ) : <table className="district-table">
             <thead>
               <tr>
                 <th onClick={() => toggleSort('district_name')} id="th-district">
@@ -118,7 +109,7 @@ export default function DistrictTable({ districts = [], loading }) {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table>}
         </div>
       )}
     </div>

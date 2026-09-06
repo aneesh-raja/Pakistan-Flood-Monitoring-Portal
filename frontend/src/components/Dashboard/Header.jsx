@@ -3,14 +3,6 @@ import { FiRefreshCw, FiAlertTriangle, FiRadio } from 'react-icons/fi'
 import { WiThunderstorm } from 'react-icons/wi'
 import { format } from 'date-fns'
 
-const TICKER_ITEMS_DEFAULT = [
-  { city: 'Sukkur',   status: 'Very High Flood', rain: 48.2 },
-  { city: 'Guddu',    status: 'High Flood',       rain: 35.5 },
-  { city: 'Taunsa',   status: 'Medium Flood',     rain: 22.1 },
-  { city: 'Marala',   status: 'Low Flood',        rain: 14.8 },
-  { city: 'Peshawar', status: 'Normal',            rain: 3.2  },
-]
-
 export default function Header({ weatherData = [], alerts = [], onRefresh, onOpenBulletins }) {
   const [currentTime, setCurrentTime] = useState(new Date())
   const [refreshing, setRefreshing] = useState(false)
@@ -29,15 +21,12 @@ export default function Header({ weatherData = [], alerts = [], onRefresh, onOpe
   const alertCount = alerts.length
   const statusColor = alertCount > 3 ? '#ef4444' : alertCount > 0 ? '#eab308' : '#22c55e'
 
-  // Build ticker items from live weather or fallback
-  const tickerItems = weatherData.length > 0
-    ? weatherData.map(w => ({
+  const tickerItems = weatherData.map(w => ({
         city: w.city,
         temp: w.temperature_c,
         rain: w.rainfall_3h_mm,
         desc: w.weather_desc,
       }))
-    : TICKER_ITEMS_DEFAULT
 
   return (
     <header className="header">

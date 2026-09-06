@@ -3,26 +3,8 @@ import {
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis,
   CartesianGrid, Tooltip, ReferenceLine, Legend
 } from 'recharts'
-import { format, subDays } from 'date-fns'
+import { format } from 'date-fns'
 import { getStationHistory } from '../../services/api.js'
-
-// Generate demo data if no station selected
-const generateDemoData = () => {
-  const data = []
-  const baseDischarge = 350000
-  for (let i = 29; i >= 0; i--) {
-    const d = subDays(new Date(), i)
-    const variation = Math.sin(i * 0.3) * 80000 + (Math.random() - 0.3) * 60000
-    data.push({
-      date: format(d, 'MMM d'),
-      discharge: Math.max(50000, Math.round(baseDischarge + variation)),
-      level: parseFloat((12 + Math.sin(i * 0.3) * 3 + (Math.random() - 0.3) * 1.5).toFixed(2)),
-    })
-  }
-  return data
-}
-
-const DEMO_DATA = generateDemoData()
 
 const CustomTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null
@@ -44,12 +26,12 @@ const CustomTooltip = ({ active, payload, label }) => {
 }
 
 export default function RiverGaugeChart({ stationId, stationName }) {
-  const [data, setData] = useState(DEMO_DATA)
+  const [data, setData] = useState([])
   const [loading, setLoading] = useState(false)
   const [tab, setTab] = useState('discharge')
 
   useEffect(() => {
-    if (!stationId) { setData(DEMO_DATA); return }
+    if (!stationId) { setData([]); return }
     setLoading(true)
     getStationHistory(stationId, 30)
       .then(res => {
@@ -58,13 +40,13 @@ export default function RiverGaugeChart({ stationId, stationName }) {
           discharge: r.discharge_cusecs,
           level: r.gauge_height_m,
         }))
-        setData(readings.length > 0 ? readings : DEMO_DATA)
+        setData(readings)
       })
-      .catch(() => setData(DEMO_DATA))
+      .catch(() => setData([]))
       .finally(() => setLoading(false))
   }, [stationId])
 
-  const title = stationName ? `${stationName} — 30-Day Trend` : 'Indus Basin — River Gauge (Demo)'
+  const title = stationName ? `${stationName} — 30-Day Trend` : 'River Gauge Telemetry'
 
   return (
     <div>
@@ -88,6 +70,10 @@ export default function RiverGaugeChart({ stationId, stationName }) {
 
         {loading ? (
           <div className="skeleton" style={{ height: 160, borderRadius: 8 }} />
+        ) : data.length === 0 ? (
+          <div style={{ height: 160, display: 'grid', placeItems: 'center', color: 'var(--text-muted)', fontSize: 11 }}>
+            Select a station with verified history.
+          </div>
         ) : (
           <ResponsiveContainer width="100%" height={160}>
             <AreaChart data={data} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>

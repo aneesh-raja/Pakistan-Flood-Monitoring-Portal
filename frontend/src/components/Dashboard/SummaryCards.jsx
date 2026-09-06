@@ -1,14 +1,5 @@
 import { formatPopulation, formatArea } from '../../utils/geojsonUtils.js'
 
-const DEMO_SUMMARY = {
-  total_affected_population: 4320000,
-  total_buildings_at_risk: 312400,
-  total_inundated_area_sqkm: 28450,
-  districts_at_severe_risk: 8,
-  districts_at_high_risk: 14,
-  total_affected_districts: 37,
-}
-
 function Card({ label, value, sub, variant = 'info', id }) {
   return (
     <div className={`summary-card ${variant}`} id={id}>
@@ -29,7 +20,7 @@ function SkeletonCard() {
 }
 
 export default function SummaryCards({ summary, loading }) {
-  const data = summary || DEMO_SUMMARY
+  const data = summary || {}
 
   if (loading) {
     return (

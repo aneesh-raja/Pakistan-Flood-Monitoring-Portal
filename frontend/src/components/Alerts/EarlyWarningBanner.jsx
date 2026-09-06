@@ -1,36 +1,3 @@
-const DEMO_ALERTS = [
-  {
-    id: 1,
-    station_name: 'Sukkur Barrage',
-    river_name: 'Indus',
-    province: 'Sindh',
-    flood_status: 'Very High Flood',
-    current_level_m: 15.1,
-    danger_level_m: 13.0,
-    discharge_cusecs: 520000,
-  },
-  {
-    id: 2,
-    station_name: 'Guddu Barrage',
-    river_name: 'Indus',
-    province: 'Sindh',
-    flood_status: 'High Flood',
-    current_level_m: 14.8,
-    danger_level_m: 13.5,
-    discharge_cusecs: 450000,
-  },
-  {
-    id: 3,
-    station_name: 'Kotri Barrage',
-    river_name: 'Indus',
-    province: 'Sindh',
-    flood_status: 'High Flood',
-    current_level_m: 13.5,
-    danger_level_m: 12.0,
-    discharge_cusecs: 480000,
-  },
-]
-
 const STATUS_CONFIG = {
   'Very High Flood': { emoji: '🔴', variant: 'critical', bgColor: 'rgba(124,58,237,0.12)', borderColor: 'rgba(124,58,237,0.4)' },
   'High Flood':      { emoji: '🟠', variant: 'high',     bgColor: 'rgba(239,68,68,0.1)',    borderColor: 'rgba(239,68,68,0.4)' },
@@ -39,7 +6,7 @@ const STATUS_CONFIG = {
 }
 
 export default function EarlyWarningBanner({ alerts = [] }) {
-  const data = alerts.length > 0 ? alerts : DEMO_ALERTS
+  const data = alerts
 
   if (!data.length) {
     return (
@@ -56,7 +23,7 @@ export default function EarlyWarningBanner({ alerts = [] }) {
   return (
     <div>
       <div className="panel-title" style={{ marginBottom: 6 }}>
-        🚨 Active Flood Alerts ({data.length})
+        🚨 Verified Flood Alerts ({data.length})
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
         {data.slice(0, 5).map((alert, i) => {
