@@ -25,7 +25,7 @@ const CustomTooltip = ({ active, payload, label }) => {
   )
 }
 
-export default function RiverGaugeChart({ stationId, stationName }) {
+export default function RiverGaugeChart({ stationId, stationName, stations = [], onSelectStation }) {
   const [data, setData] = useState([])
   const [loading, setLoading] = useState(false)
   const [tab, setTab] = useState('discharge')
@@ -46,14 +46,45 @@ export default function RiverGaugeChart({ stationId, stationName }) {
       .finally(() => setLoading(false))
   }, [stationId])
 
-  const title = stationName ? `${stationName} — 30-Day Trend` : 'River Gauge Telemetry'
-
   return (
     <div>
-      <div className="panel-title">River Gauge Telemetry</div>
+      <div className="panel-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span>River Gauge Telemetry</span>
+        {stations.length > 0 && (
+          <select
+            value={stationId || ''}
+            onChange={(e) => {
+              const selected = stations.find(s => s.id === e.target.value)
+              if (selected) onSelectStation?.(selected)
+            }}
+            style={{
+              background: 'rgba(15, 23, 42, 0.8)',
+              color: '#38bdf8',
+              border: '1px solid rgba(56, 189, 248, 0.3)',
+              borderRadius: 6,
+              padding: '2px 6px',
+              fontSize: 10,
+              fontWeight: 600,
+              outline: 'none',
+              cursor: 'pointer',
+              maxWidth: 140,
+            }}
+          >
+            <option value="" disabled>Select Station...</option>
+            {stations.map(st => (
+              <option key={st.id} value={st.id}>
+                {st.station_name} ({st.river_name})
+              </option>
+            ))}
+          </select>
+        )}
+      </div>
+
       <div className="chart-wrapper">
         <div className="chart-header">
-          <span className="chart-title" style={{ fontSize: 11 }}>{title}</span>
+          <span className="chart-title" style={{ fontSize: 11, color: '#f8fafc' }}>
+            {stationName ? `📍 ${stationName} — 30-Day Trend` : 'Select a river station'}
+          </span>
           <div className="tab-bar" style={{ width: 'auto' }}>
             <button
               id="tab-discharge"
@@ -71,8 +102,29 @@ export default function RiverGaugeChart({ stationId, stationName }) {
         {loading ? (
           <div className="skeleton" style={{ height: 160, borderRadius: 8 }} />
         ) : data.length === 0 ? (
-          <div style={{ height: 160, display: 'grid', placeItems: 'center', color: 'var(--text-muted)', fontSize: 11 }}>
-            Select a station with verified history.
+          <div style={{ height: 160, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10, padding: 12 }}>
+            <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>
+              Select a river station to view 30-day telemetry:
+            </span>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center' }}>
+              {stations.slice(0, 4).map(st => (
+                <button
+                  key={st.id}
+                  onClick={() => onSelectStation?.(st)}
+                  style={{
+                    background: 'rgba(56, 189, 248, 0.1)',
+                    border: '1px solid rgba(56, 189, 248, 0.3)',
+                    color: '#38bdf8',
+                    borderRadius: 4,
+                    padding: '3px 8px',
+                    fontSize: 10,
+                    cursor: 'pointer',
+                  }}
+                >
+                  📍 {st.station_name}
+                </button>
+              ))}
+            </div>
           </div>
         ) : (
           <ResponsiveContainer width="100%" height={160}>

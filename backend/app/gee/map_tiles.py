@@ -88,7 +88,7 @@ def get_inundation_tile_url() -> dict:
     perm_water = jrc.gt(80)
 
     # Remove steep terrain shadows (slope > 5°)
-    dem   = ee.ImageCollection("COPERNICUS/DEM/GLO30").filterBounds(_pak_bbox()).mosaic()
+    dem   = ee.ImageCollection("COPERNICUS/DEM/GLO30_2024_1").filterBounds(_pak_bbox()).mosaic()
     slope = ee.Terrain.slope(dem.select("DEM"))
     steep = slope.gt(5)
 
@@ -140,7 +140,7 @@ def get_hazard_tile_url() -> dict:
     """
     logger.info("Computing Flood Hazard Index tile ...")
 
-    dem       = ee.ImageCollection("COPERNICUS/DEM/GLO30").filterBounds(_pak_bbox()).mosaic()
+    dem       = ee.ImageCollection("COPERNICUS/DEM/GLO30_2024_1").filterBounds(_pak_bbox()).mosaic()
     elevation = dem.select("DEM")
     slope     = ee.Terrain.slope(elevation)
 
@@ -198,7 +198,7 @@ def get_risk_tile_url() -> dict:
     logger.info("Computing Flood Risk tile (Hazard × WorldPop) ...")
 
     # ── Hazard component (same as above, compact) ─────────────────────────────
-    dem       = ee.ImageCollection("COPERNICUS/DEM/GLO30").filterBounds(_pak_bbox()).mosaic()
+    dem       = ee.ImageCollection("COPERNICUS/DEM/GLO30_2024_1").filterBounds(_pak_bbox()).mosaic()
     elevation = dem.select("DEM")
     slope     = ee.Terrain.slope(elevation)
     jrc       = ee.Image("JRC/GSW1_4/GlobalSurfaceWater").select("occurrence")
@@ -219,7 +219,7 @@ def get_risk_tile_url() -> dict:
         .first()
     )
     # Log-normalise population density (0–1 scale)
-    pop_norm = worldpop.log1p().unitScale(0, 10).clamp(0, 1)
+    pop_norm = worldpop.add(1).log().unitScale(0, 10).clamp(0, 1)
 
     # ── Risk = Hazard × Exposure ──────────────────────────────────────────────
     risk = hazard.multiply(pop_norm).multiply(100).rename("risk_index").clip(_pak_bbox())
@@ -260,7 +260,7 @@ def get_awareness_tile_url() -> dict:
     logger.info("Computing NDMA Awareness tile ...")
 
     # Recompute Risk index (same as above)
-    dem       = ee.ImageCollection("COPERNICUS/DEM/GLO30").filterBounds(_pak_bbox()).mosaic()
+    dem       = ee.ImageCollection("COPERNICUS/DEM/GLO30_2024_1").filterBounds(_pak_bbox()).mosaic()
     elevation = dem.select("DEM")
     slope     = ee.Terrain.slope(elevation)
     jrc       = ee.Image("JRC/GSW1_4/GlobalSurfaceWater").select("occurrence")
@@ -276,7 +276,7 @@ def get_awareness_tile_url() -> dict:
         .filter(ee.Filter.calendarRange(2020, 2020, "year"))
         .first()
     )
-    pop_norm = worldpop.log1p().unitScale(0, 10).clamp(0, 1)
+    pop_norm = worldpop.add(1).log().unitScale(0, 10).clamp(0, 1)
     risk_raw = hazard.multiply(pop_norm).multiply(100).clip(_pak_bbox())
 
     # ── 5-class NDMA thresholding ─────────────────────────────────────────────

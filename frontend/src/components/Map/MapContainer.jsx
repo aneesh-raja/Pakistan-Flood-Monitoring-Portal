@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
+import { getDistricts } from '../../services/api.js'
 
 // Center coordinates for Pakistan region
 const PAKISTAN_CENTER = [30.3753, 69.3451]
@@ -92,6 +93,7 @@ export default function MapContainer({
     baseTileLayerRef.current = baseTile
     stationGroupRef.current = L.layerGroup().addTo(map)
     riverGroupRef.current   = L.layerGroup().addTo(map)
+    districtGroupRef.current = L.layerGroup().addTo(map)
     infraGroupRef.current   = L.layerGroup().addTo(map)
     evacGroupRef.current    = L.layerGroup().addTo(map)
     mapInstance.current     = map
@@ -143,6 +145,56 @@ export default function MapContainer({
       })
     }
   }, [activeLayers.rivers])
+
+  // ── 3.5 Render District & Province Boundaries ─────────────────────────────
+  const [districtGeoJson, setDistrictGeoJson] = useState(null)
+  const districtGroupRef = useRef(null)
+
+  useEffect(() => {
+    getDistricts()
+      .then(data => {
+        if (data?.features) setDistrictGeoJson(data)
+      })
+      .catch(err => console.warn('Failed to fetch district boundaries:', err))
+  }, [])
+
+  useEffect(() => {
+    const group = districtGroupRef.current
+    if (!group) return
+    group.clearLayers()
+
+    if ((activeLayers.districts || activeLayers.provinces) && districtGeoJson) {
+      const geoLayer = L.geoJSON(districtGeoJson, {
+        style: (feature) => {
+          const hClass = feature.properties?.hazard_class || 'Low'
+          const color = hClass === 'Severe' ? '#ef4444' :
+                        hClass === 'High' ? '#f97316' :
+                        hClass === 'Moderate' ? '#eab308' : '#22c55e'
+          return {
+            color: activeLayers.provinces ? '#38bdf8' : color,
+            weight: activeLayers.provinces ? 2 : 1.2,
+            opacity: 0.85,
+            fillColor: color,
+            fillOpacity: activeLayers.districts ? 0.18 : 0.05,
+            dashArray: activeLayers.provinces ? '4, 4' : null,
+          }
+        },
+        onEachFeature: (feature, layer) => {
+          const p = feature.properties || {}
+          layer.bindPopup(`
+            <div class="map-popup">
+              <div class="popup-title">🏙️ ${p.name_en || 'District'}</div>
+              <div class="popup-row"><span class="popup-label">Province</span><span class="popup-value">${p.province || '—'}</span></div>
+              <div class="popup-row"><span class="popup-label">Hazard Level</span><span class="popup-value" style="color:${p.hazard_class === 'Severe' ? '#ef4444' : '#f97316'}; font-weight:700;">${p.hazard_class || 'Low'}</span></div>
+              <div class="popup-row"><span class="popup-label">Population</span><span class="popup-value">${p.total_population?.toLocaleString() || '—'}</span></div>
+              <div class="popup-row"><span class="popup-label">Buildings</span><span class="popup-value">${p.total_buildings?.toLocaleString() || '—'}</span></div>
+            </div>
+          `)
+        }
+      })
+      group.addLayer(geoLayer)
+    }
+  }, [districtGeoJson, activeLayers.districts, activeLayers.provinces])
 
   // ── 4. Render Critical Infrastructure & Evacuation Areas ───────────────────
   useEffect(() => {
@@ -269,6 +321,17 @@ export default function MapContainer({
       rasterLayerRef.current = null
     }
 
+    // Live OpenWeatherMap Precipitation Radar
+    if (activeLayers.radar) {
+      const radarLayer = L.tileLayer(
+        'https://tile.openweathermap.org/map/precipitation_new/{z}/{x}/{y}.png?appid=822a8cf65299dd975338e4bbd7f0e428',
+        { opacity: 0.75, maxZoom: 18 }
+      )
+      radarLayer.addTo(map)
+      rasterLayerRef.current = radarLayer
+      return
+    }
+
     let activeRasterKey = null
     if (activeLayers.inundation) activeRasterKey = 'inundation'
     else if (activeLayers.rainfall) activeRasterKey = 'hazard'
@@ -285,7 +348,7 @@ export default function MapContainer({
     layer.on('tileerror', () => setTileLoading(false))
     layer.addTo(map)
     rasterLayerRef.current = layer
-  }, [activeLayers.inundation, activeLayers.rainfall, activeLayers.population, geeTileUrls])
+  }, [activeLayers.inundation, activeLayers.rainfall, activeLayers.population, activeLayers.radar, geeTileUrls])
 
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>

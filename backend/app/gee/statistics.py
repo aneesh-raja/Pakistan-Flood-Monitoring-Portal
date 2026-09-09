@@ -23,11 +23,15 @@ def get_pakistan_bbox():
 def initialize_gee(service_account: str = None, key_path: str = None, project_id: str = None):
     """Initialize GEE with service account or default credentials."""
     try:
+        kwargs = {}
+        if project_id and project_id.strip():
+            kwargs["project"] = project_id.strip()
+
         if service_account and key_path and os.path.exists(key_path):
             credentials = ee.ServiceAccountCredentials(service_account, key_path)
-            ee.Initialize(credentials, project=project_id)
+            ee.Initialize(credentials, **kwargs)
         else:
-            ee.Initialize(project=project_id)
+            ee.Initialize(**kwargs)
         logger.info("Successfully initialized Google Earth Engine using service account key.")
     except Exception as e:
         logger.error("Failed to initialize GEE: %s", e)
@@ -103,6 +107,7 @@ def compute_population_at_risk(flood_mask: ee.Image, year: int = 2020) -> Dict[s
 
     return {
         "total_affected_population": total_pop,
+        "districts_affected_count": len([d for d in district_list if d["affected_population"] > 0]),
         "districts": district_list,
     }
 
@@ -126,8 +131,26 @@ def compute_rainfall_statistics(start_date: str, end_date: str) -> Dict[str, Any
         .filterBounds(get_pakistan_bbox())
     )
 
+    actual_period = f"{start_date} to {end_date}"
+    if chirps.size().getInfo() == 0:
+        logger.warning("No CHIRPS data for %s to %s — falling back to latest available 30-day window", start_date, end_date)
+        try:
+            latest_img = ee.ImageCollection("UCSB-CHG/CHIRPS/DAILY").sort("system:time_start", False).first()
+            latest_time = latest_img.get("system:time_start").getInfo()
+            from datetime import datetime, timedelta
+            latest_dt = datetime.utcfromtimestamp(latest_time / 1000.0)
+            fallback_end = latest_dt.strftime("%Y-%m-%d")
+            fallback_start = (latest_dt - timedelta(days=30)).strftime("%Y-%m-%d")
+            actual_period = f"{fallback_start} to {fallback_end} (Latest Available)"
+            chirps = (
+                ee.ImageCollection("UCSB-CHG/CHIRPS/DAILY")
+                .filterDate(fallback_start, fallback_end)
+                .filterBounds(get_pakistan_bbox())
+            )
+        except Exception as e:
+            logger.warning("Failed to determine latest CHIRPS image: %s", e)
+
     total_rainfall = chirps.sum().clip(get_pakistan_bbox())
-    mean_rainfall = chirps.mean().clip(get_pakistan_bbox())
 
     # Pakistan-wide totals
     stats = total_rainfall.reduceRegion(
@@ -135,8 +158,9 @@ def compute_rainfall_statistics(start_date: str, end_date: str) -> Dict[str, Any
         geometry=get_pakistan_bbox(),
         scale=5000,
         maxPixels=1e13,
-    )
-    total_mean_mm = round(stats.get("precipitation").getInfo() or 0, 2)
+    ).getInfo() or {}
+
+    total_mean_mm = round(float(stats.get("precipitation") or 0.0), 2)
 
     # District-wise CHIRPS totals
     districts = load_pakistan_districts()
@@ -152,13 +176,13 @@ def compute_rainfall_statistics(start_date: str, end_date: str) -> Dict[str, Any
         district_rainfall_list.append({
             "district": props.get("ADM2_NAME", "Unknown"),
             "province": props.get("ADM1_NAME", "Unknown"),
-            "total_rainfall_mm": round(props.get("mean", 0) or 0, 2),
+            "total_rainfall_mm": round(float(props.get("mean") or 0.0), 2),
         })
 
     district_rainfall_list.sort(key=lambda x: x["total_rainfall_mm"], reverse=True)
 
     return {
-        "period": f"{start_date} to {end_date}",
+        "period": actual_period,
         "national_mean_rainfall_mm": total_mean_mm,
         "districts": district_rainfall_list,
     }
@@ -176,7 +200,7 @@ def compute_flood_hazard_index() -> Dict[str, Any]:
     logger.info("Computing Flood Hazard Index ...")
 
     # ── DEM & Slope ───────────────────────────────────────────────────────────
-    dem = ee.ImageCollection("COPERNICUS/DEM/GLO30").filterBounds(get_pakistan_bbox()).mosaic()
+    dem = ee.ImageCollection("COPERNICUS/DEM/GLO30_2024_1").filterBounds(get_pakistan_bbox()).mosaic()
     elevation = dem.select("DEM")
     slope = ee.Terrain.slope(elevation)
 

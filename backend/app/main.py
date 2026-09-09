@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.api import districts, rivers, flood, weather, gee
 
+
 app = FastAPI(
     title="Pakistan Flood Monitoring Portal — API",
     description=(

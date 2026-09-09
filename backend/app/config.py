@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     GEE_PRIVATE_KEY_PATH: str = os.path.abspath(
         os.path.join(os.path.dirname(__file__), "..", "..", "gee_credentials.json")
     )
-    GEE_PROJECT_ID: str = "flood-monitoring-portal"
+    GEE_PROJECT_ID: str = ""
 
     # ── Supabase ─────────────────────────────────────────────
     SUPABASE_URL: str = ""

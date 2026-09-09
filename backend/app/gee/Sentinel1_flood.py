@@ -130,7 +130,7 @@ def get_flood_extent_image(
     flood_mask = flood_mask.where(permanent_water, 0)
 
     # ── Remove terrain shadows (Copernicus DEM slope) ─────────────────────────
-    dem = ee.ImageCollection("COPERNICUS/DEM/GLO30").filterBounds(PAKISTAN_BBOX).mosaic()
+    dem = ee.ImageCollection("COPERNICUS/DEM/GLO30_2024_1").filterBounds(PAKISTAN_BBOX).mosaic()
     slope = ee.Terrain.slope(dem)
     steep_terrain = slope.gt(SLOPE_THRESHOLD_DEG)
     flood_mask = flood_mask.where(steep_terrain, 0)

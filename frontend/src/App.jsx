@@ -1,21 +1,22 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Toaster, toast } from 'react-hot-toast'
 import Header from './components/Dashboard/Header.jsx'
+import ActiveAlertsPanel from './components/Dashboard/ActiveAlertsPanel.jsx'
+import StationDetailPanel from './components/Dashboard/StationDetailPanel.jsx'
+import RiverForecastSection from './components/Dashboard/RiverForecastSection.jsx'
 import SummaryCards from './components/Dashboard/SummaryCards.jsx'
-import RiverGaugeChart from './components/Dashboard/RiverGaugeChart.jsx'
 import RainfallTrendChart from './components/Dashboard/RainfallTrendChart.jsx'
 import DistrictTable from './components/Dashboard/DistrictTable.jsx'
 import MapContainer from './components/Map/MapContainer.jsx'
-import LayerControl, { DEFAULT_LAYERS } from './components/Map/LayerControl.jsx'
+import LayerToolbar, { DEFAULT_LAYERS } from './components/Map/LayerToolbar.jsx'
 import FloodLegend from './components/Map/FloodLegend.jsx'
-import EarlyWarningBanner from './components/Alerts/EarlyWarningBanner.jsx'
 import BarrageForecastModal from './components/Modals/BarrageForecastModal.jsx'
 import FloodBulletinModal from './components/Modals/FloodBulletinModal.jsx'
 import {
   getNationalSummary, getRiverStations, getFloodAlerts,
   getDistrictImpact, getAllWeather,
   getHazardMap, getRiskMap, getGEESummary,
-  preloadAllGEETiles,
+  preloadAllGEETiles, getStationForecast,
 } from './services/api.js'
 import { subscribeToRiverStations } from './services/supabase.js'
 import { exportFloodSituationReport } from './utils/pdfExportUtils.js'
@@ -34,15 +35,15 @@ export default function App() {
   // ── Data state ───────────────────────────────────────────────────────────
   const [summary, setSummary]           = useState(null)
   const [geeSummary, setGeeSummary]     = useState(null)
-  const [geeTileUrls, setGeeTileUrls]   = useState({})   // layer → { tile_url, palette, ... }
+  const [geeTileUrls, setGeeTileUrls]   = useState({})
   const [tilePreloading, setTilePreloading] = useState(true)
   const [stations, setStations]         = useState([])
   const [alerts, setAlerts]             = useState([])
   const [districtData, setDistrictData] = useState([])
   const [weatherData, setWeatherData]   = useState([])
-  const [floodExtent, setFloodExtent]   = useState(null)
   const [selectedStation, setSelectedStation] = useState(null)
   const [forecastStation, setForecastStation] = useState(null)
+  const [stationForecastDetails, setStationForecastDetails] = useState(null)
   const [loading, setLoading]           = useState(true)
   const [pdfLoading, setPdfLoading]     = useState(false)
 
@@ -59,7 +60,16 @@ export default function App() {
       ])
 
       if (sum.status    === 'fulfilled') setSummary(sum.value)
-      if (stns.status   === 'fulfilled') setStations(stns.value?.features || [])
+      if (stns.status   === 'fulfilled') {
+        const featureList = stns.value?.features || []
+        setStations(featureList)
+        // Default select Guddu Barrage or first station
+        setSelectedStation(prev => {
+          if (prev) return prev
+          const guddu = featureList.find(f => f.properties?.station_name?.includes('Guddu'))
+          return (guddu || featureList[0])?.properties || null
+        })
+      }
       if (alts.status   === 'fulfilled') setAlerts(alts.value?.active_alerts || [])
       if (dist.status   === 'fulfilled') setDistrictData(dist.value?.districts || [])
       if (wx.status     === 'fulfilled') setWeatherData(wx.value?.cities || [])
@@ -75,8 +85,7 @@ export default function App() {
     fetchData()
     const interval = setInterval(fetchData, REFRESH_INTERVAL)
 
-    // ── Preload all 4 GEE tile layers in background on startup ────────────────
-    // This runs once so layer switching is instant (no GEE wait on first click)
+    // Preload all 4 GEE tile layers on startup
     setTilePreloading(true)
     preloadAllGEETiles()
       .then(data => {
@@ -85,10 +94,10 @@ export default function App() {
           console.log('✅ GEE tile layers preloaded:', Object.keys(data.layers))
         }
       })
-      .catch(err => console.warn('GEE tile preload failed (non-fatal):', err))
+      .catch(err => console.warn('GEE tile preload error:', err))
       .finally(() => setTilePreloading(false))
 
-    // Supabase real-time subscription for river stations
+    // Supabase real-time subscription
     const channel = subscribeToRiverStations((payload) => {
       setStations(prev => {
         const updated = payload.new
@@ -106,25 +115,26 @@ export default function App() {
     }
   }, [fetchData])
 
-  // ── Active GeoJSON layer for the map — no longer used (GEE tiles replace) ──
-  // geeTileUrls passed directly to MapContainer
+  // Fetch forecast details for selected station
+  useEffect(() => {
+    if (!selectedStation?.id) return
+    getStationForecast(selectedStation.id, 7)
+      .then(res => setStationForecastDetails(res))
+      .catch(() => setStationForecastDetails(null))
+  }, [selectedStation?.id])
 
-  // ── Barrage station click → forecast modal ────────────────────────────────
-  const handleStationSelect = useCallback((station) => {
-    setSelectedStation(station)  // for chart
-    setForecastStation(station)  // open modal
+  // ── Station Selection Handler ─────────────────────────────────────────────
+  const handleStationSelect = useCallback((stationProps) => {
+    setSelectedStation(stationProps)
   }, [])
 
-  // ── Merge GEE stats into summary for SummaryCards ────────────────────────
+  // ── Merge GEE stats into summary ─────────────────────────────────────────
   const mergedSummary = summary ? {
     ...summary,
-    // Enrich with GEE satellite-derived stats when available
     ...(geeSummary ? {
-      gee_severe_districts:       geeSummary.hazard_districts?.severe,
-      gee_high_districts:         geeSummary.hazard_districts?.high,
-      gee_monthly_rainfall_mm:    geeSummary.current_month_rainfall_mm,
-      gee_data_source:            geeSummary.source,
-      gee_computed_at:            geeSummary.computed_at,
+      gee_severe_districts:    geeSummary.hazard_districts?.severe,
+      gee_high_districts:      geeSummary.hazard_districts?.high,
+      gee_monthly_rainfall_mm: geeSummary.current_month_rainfall_mm,
     } : {})
   } : null
 
@@ -151,25 +161,23 @@ export default function App() {
   }, [mergedSummary, alerts, districtData, stations, weatherData, activeLayers.inundation])
 
   return (
-    <div className="app-shell">
+    <div className="app-shell" style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#050c1a', overflow: 'hidden' }}>
       <Toaster
         position="top-right"
         toastOptions={{
           style: {
-            background: 'var(--bg-secondary)',
-            color: 'var(--text-primary)',
-            border: '1px solid var(--border)',
+            background: '#081427',
+            color: '#f8fafc',
+            border: '1px solid rgba(0,240,255,0.3)',
             fontSize: '12px',
           },
         }}
       />
 
-      {/* ── Flood Bulletins Modal ──────────────────────────────────────── */}
+      {/* ── Modals ──────────────────────────────────────────────────────── */}
       {showBulletins && (
         <FloodBulletinModal onClose={() => setShowBulletins(false)} />
       )}
-
-      {/* ── Barrage Forecast Modal ──────────────────────────────────────── */}
       {forecastStation && (
         <BarrageForecastModal
           station={forecastStation}
@@ -177,7 +185,7 @@ export default function App() {
         />
       )}
 
-      {/* ── Header ─────────────────────────────────────────────────────── */}
+      {/* ── TOP HEADER ─────────────────────────────────────────────────── */}
       <Header
         weatherData={weatherData}
         alerts={alerts}
@@ -185,196 +193,103 @@ export default function App() {
         onOpenBulletins={() => setShowBulletins(true)}
       />
 
-      <div className="app-body">
-        {/* ── Left Panel ─────────────────────────────────────────────────── */}
-        <aside className="panel-left">
-          <div className="panel-scroll">
-            {/* Early Warning Alerts */}
-            <EarlyWarningBanner alerts={alerts} />
+      {/* ── MAIN DASHBOARD SCROLL CONTAINER ────────────────────────────── */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+        
+        {/* ── 3-COLUMN MAIN AREA ─────────────────────────────────────────── */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: '280px minmax(400px, 1fr) 310px',
+          gap: 12,
+          minHeight: 460,
+          height: '52vh',
+        }}>
+          {/* Left Column: Active Alerts List */}
+          <ActiveAlertsPanel
+            stations={stations.map(s => s.properties || s)}
+            selectedStation={selectedStation}
+            onSelectStation={handleStationSelect}
+          />
 
-            {/* National Summary Statistics (with live GEE data) */}
-            <SummaryCards summary={mergedSummary} loading={loading} />
-
-            {/* GEE Live Stats Badge */}
-            {geeSummary && (
-              <div style={{
-                margin: '8px 0',
-                padding: '10px 14px',
-                background: 'rgba(2,132,199,0.08)',
-                border: '1px solid rgba(0,240,255,0.15)',
-                borderRadius: 10,
-                display: 'flex', flexDirection: 'column', gap: 6,
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-                  <span style={{ fontSize: 13 }}>🛰</span>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: '#00f0ff' }}>Google Earth Engine — Live Satellite Stats</span>
-                </div>
-                <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-                  <div style={{ fontSize: 11, color: '#94a3b8' }}>
-                    ⚠ Severe Districts:
-                    <strong style={{ color: '#ef4444', marginLeft: 4 }}>
-                      {geeSummary.hazard_districts?.severe ?? '—'}
-                    </strong>
-                  </div>
-                  <div style={{ fontSize: 11, color: '#94a3b8' }}>
-                    🌧 Monthly Rainfall:
-                    <strong style={{ color: '#38bdf8', marginLeft: 4 }}>
-                      {geeSummary.current_month_rainfall_mm ?? '—'} mm
-                    </strong>
-                  </div>
-                </div>
-                <div style={{ fontSize: 10, color: '#475569' }}>
-                  {geeSummary.computed_at ? `Computed: ${new Date(geeSummary.computed_at).toLocaleString('en-PK')}` : ''}
-                </div>
+          {/* Center Column: Map & Quick Layer Toolbar */}
+          <div style={{ display: 'flex', flexDirection: 'column', borderRadius: 12, overflow: 'hidden', border: '1px solid rgba(0, 240, 255, 0.2)', position: 'relative' }}>
+            <div style={{ flex: 1, position: 'relative' }}>
+              <MapContainer
+                activeLayers={activeLayers}
+                geeTileUrls={geeTileUrls}
+                stations={stations}
+                onStationSelect={handleStationSelect}
+              />
+              <div className="map-overlay-bottom-right">
+                <FloodLegend activeLayer={activeLayers.inundation ? 'inundation' : activeLayers.rainfall ? 'hazard' : 'risk'} />
               </div>
-            )}
+            </div>
 
-            {/* River Gauge Chart */}
-            <RiverGaugeChart
-              stationId={selectedStation?.id}
-              stationName={selectedStation?.station_name}
+            {/* Integrated Layer Toolbar directly below map */}
+            <LayerToolbar
+              activeLayers={activeLayers}
+              onToggleLayer={handleToggleLayer}
             />
+          </div>
 
-            {/* PDF Export Button */}
+          {/* Right Column: Selected Station Detail Panel */}
+          <StationDetailPanel
+            station={selectedStation}
+            forecastDetails={stationForecastDetails}
+            onOpenModal={() => setForecastStation(selectedStation)}
+          />
+        </div>
+
+        {/* ── WIDE SECTION: 72-HOUR RIVER FORECAST CHART ─────────────────── */}
+        <RiverForecastSection
+          station={selectedStation}
+        />
+
+        {/* ── BOTTOM SUMMARY BAR: 5 AGGREGATE KPI CARDS ─────────────────── */}
+        <SummaryCards
+          summary={mergedSummary}
+          geeSummary={geeSummary}
+          districtCount={districtData.length || 20}
+          stationCount={stations.length || 8}
+          loading={loading}
+        />
+
+        {/* ── SECONDARY MONITORING TILES (Districts & 3-Hour Rainfall) ───── */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(300px, 1fr) 340px', gap: 12, marginTop: 4 }}>
+          <DistrictTable districts={districtData} loading={loading} />
+          
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <RainfallTrendChart weatherData={weatherData} loading={loading} />
+            
             <button
               id="export-pdf-btn"
               onClick={handleExportPDF}
               disabled={pdfLoading}
               style={{
                 width: '100%',
-                marginTop: 8,
-                padding: '10px 16px',
+                padding: '12px 16px',
                 background: pdfLoading
                   ? 'rgba(100,116,139,0.3)'
-                  : 'linear-gradient(135deg, rgba(2,132,199,0.25) 0%, rgba(0,240,255,0.12) 100%)',
-                border: '1px solid rgba(0,240,255,0.3)',
+                  : 'linear-gradient(135deg, rgba(2,132,199,0.3) 0%, rgba(0,240,255,0.15) 100%)',
+                border: '1px solid rgba(0,240,255,0.4)',
                 borderRadius: 10,
                 color: pdfLoading ? '#64748b' : '#00f0ff',
                 fontSize: 12,
-                fontWeight: 700,
+                fontWeight: 800,
                 cursor: pdfLoading ? 'not-allowed' : 'pointer',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 gap: 8,
                 transition: 'all 0.2s',
-                letterSpacing: '0.02em',
-              }}
-              onMouseOver={e => {
-                if (!pdfLoading) {
-                  e.currentTarget.style.background = 'linear-gradient(135deg, rgba(2,132,199,0.4) 0%, rgba(0,240,255,0.2) 100%)'
-                  e.currentTarget.style.boxShadow = '0 4px 20px rgba(0,240,255,0.15)'
-                }
-              }}
-              onMouseOut={e => {
-                e.currentTarget.style.background = 'linear-gradient(135deg, rgba(2,132,199,0.25) 0%, rgba(0,240,255,0.12) 100%)'
-                e.currentTarget.style.boxShadow = 'none'
+                letterSpacing: '0.03em',
               }}
             >
-              {pdfLoading ? '⏳ Generating Report…' : '📄 Export Flood Situation Report (PDF)'}
+              {pdfLoading ? '⏳ Generating Official PDF…' : '📄 Export Flood Situation Report (PDF)'}
             </button>
           </div>
-        </aside>
+        </div>
 
-        {/* ── Map ───────────────────────────────────────────────────────── */}
-        <main className="map-container" style={{ position: 'relative' }}>
-          <LayerControl
-            activeLayers={activeLayers}
-            onToggleLayer={handleToggleLayer}
-          />
-          <MapContainer
-            activeLayers={activeLayers}
-            geeTileUrls={geeTileUrls}
-            stations={stations}
-            onStationSelect={handleStationSelect}
-          />
-          <div className="map-overlay-bottom-right">
-            <FloodLegend activeLayer={activeLayers.inundation ? 'inundation' : activeLayers.rainfall ? 'hazard' : 'risk'} />
-          </div>
-        </main>
-
-        {/* ── Right Panel ─────────────────────────────────────────────── */}
-        <aside className="panel-right">
-          <div className="panel-scroll">
-            <RainfallTrendChart weatherData={weatherData} loading={loading} />
-            <DistrictTable districts={districtData} loading={loading} />
-
-            {/* Supabase Historical Event Comparison Panel */}
-            <HistoricalEventPanel geeSummary={geeSummary} />
-          </div>
-        </aside>
-      </div>
-    </div>
-  )
-}
-
-// ── Supabase Historical Event Comparison (Feature 4) ─────────────────────────
-function HistoricalEventPanel({ geeSummary }) {
-  const HISTORICAL_EVENTS = [
-    { year: '2022', label: '2022 Monsoon Mega-Floods', severity: 'Catastrophic', pop: '33M', area: '81,000 km²', color: '#ef4444' },
-    { year: '2021', label: '2021 Balochistan Floods',  severity: 'Severe',       pop: '1.2M', area: '5,400 km²',  color: '#f97316' },
-    { year: '2020', label: '2020 KPK Flash Floods',    severity: 'High',         pop: '890K', area: '2,100 km²',  color: '#eab308' },
-    { year: '2019', label: '2019 Sindh Monsoon',       severity: 'Moderate',     pop: '540K', area: '1,800 km²',  color: '#06b6d4' },
-  ]
-
-  return (
-    <div style={{
-      marginTop: 16,
-      background: 'rgba(8,20,39,0.8)',
-      border: '1px solid rgba(255,255,255,0.08)',
-      borderRadius: 12,
-      padding: '14px 16px',
-    }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-        <span style={{ fontSize: 14 }}>📊</span>
-        <span style={{ fontSize: 12, fontWeight: 700, color: '#e2e8f0' }}>Historical Event Comparison</span>
-        <span style={{
-          marginLeft: 'auto', fontSize: 9, color: '#22c55e',
-          background: 'rgba(34,197,94,0.12)', padding: '2px 7px',
-          borderRadius: 20, border: '1px solid rgba(34,197,94,0.3)', fontWeight: 700,
-        }}>SUPABASE LIVE</span>
-      </div>
-
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-        {HISTORICAL_EVENTS.map(ev => (
-          <div key={ev.year} style={{
-            background: 'rgba(15,30,60,0.7)',
-            border: `1px solid ${ev.color}22`,
-            borderLeft: `3px solid ${ev.color}`,
-            borderRadius: 8,
-            padding: '8px 12px',
-            display: 'flex', alignItems: 'center', gap: 10,
-          }}>
-            <div style={{
-              background: `${ev.color}18`,
-              color: ev.color,
-              borderRadius: 6, padding: '4px 8px',
-              fontSize: 11, fontWeight: 800, minWidth: 36, textAlign: 'center',
-            }}>
-              {ev.year}
-            </div>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: '#e2e8f0', marginBottom: 2 }}>
-                {ev.label}
-              </div>
-              <div style={{ display: 'flex', gap: 10, fontSize: 10, color: '#64748b' }}>
-                <span>👥 {ev.pop}</span>
-                <span>🗺 {ev.area}</span>
-              </div>
-            </div>
-            <div style={{
-              fontSize: 10, fontWeight: 700, color: ev.color,
-              background: `${ev.color}15`, padding: '2px 8px',
-              borderRadius: 12, whiteSpace: 'nowrap',
-            }}>
-              {ev.severity}
-            </div>
-          </div>
-        ))}
-      </div>
-
-      <div style={{ marginTop: 10, fontSize: 10, color: '#334155', textAlign: 'center' }}>
-        Historical flood event data synced from Supabase database · GEE satellite archives
       </div>
     </div>
   )
