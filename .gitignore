@@ -16,9 +16,11 @@ build/
 
 # GEE credentials
 *.json
+!package.json
 !frontend/package.json
 !frontend/package-lock.json
 !vercel.json
+!frontend/vercel.json
 service_account_key.json
 gee_credentials.json
 

@@ -1,0 +1,13 @@
+{
+  "name": "pakistan-flood-monitoring-portal",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "frontend"
+  ],
+  "scripts": {
+    "build": "npm --prefix frontend run build",
+    "dev": "npm --prefix frontend run dev",
+    "install:frontend": "npm --prefix frontend install"
+  }
+}
